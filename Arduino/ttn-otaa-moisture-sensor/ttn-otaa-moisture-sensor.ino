@@ -37,7 +37,8 @@
 #include <EEPROM.h> // To get configuration details from EEPROM
 
 // Application Pins
-int soilPin = A0;   // Declare a variable for the soil moisture sensor
+int soilPin  = A0;  // Declare a variable for the soil moisture sensor
+int powerPin = 3;   // turn on power prior to measurement
 int val     = 0;    // Store moisture value
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -312,8 +313,17 @@ void do_send(osjob_t* j) {
   if (LMIC.opmode & OP_TXRXPEND) {
     Serial.println(F("OP_TXRXPEND, not sending"));
   } else {
-    // Prepare upstream data transmission at the next possible time.
 
+    // Apply power
+    pinMode(powerPin, OUTPUT);
+    digitalWrite(powerPin, HIGH);
+    delay(10);
+    val = analogRead(soilPin); //Read the SIG value form sensor
+    digitalWrite(powerPin, LOW);
+    Serial.print("Soil Moisture = ");
+    Serial.println(val);
+
+    // Prepare upstream data transmission at the next possible time.
     sprintf(mydata, "Sensor: 0x%.4X", val);
     LMIC_setTxData2(1, mydata, sizeof(mydata) - 1, 0);
     Serial.println(F("Packet queued"));
@@ -356,9 +366,6 @@ void setup() {
 void loop() {
   os_runloop_once();
 
-  val = analogRead(soilPin); //Read the SIG value form sensor
-  //Serial.print("Soil Moisture = ");
-  //Serial.println(val);
 
   //Serial.println(analogRead(A0));
   //Serial.println(analogRead(A1));
