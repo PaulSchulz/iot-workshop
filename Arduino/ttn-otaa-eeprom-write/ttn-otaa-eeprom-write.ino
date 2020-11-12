@@ -1,4 +1,5 @@
 #include <EEPROM.h>
+#include "devices.h"
 
 // Write persistant data to Arduino EEPROM for PAE IoT applications,
 // connecting to 'The Things Network' (TTN).
@@ -10,14 +11,14 @@
 // The source code then does not need to be different for each device.
 
 // If device number is 0, use default settings, otherwise set configuration from device array.
-int    device = 2;  // Device number for configuration data
+int    device_number = 0;  // Device number for configuration data
 
 // Software Configuration
-int erase_eeprom = 0; // Erase all EEPROM contents.
-int write_eeprom = 0; // Write EEPROM, otherwise, just read.
+int eeprom_write = 0; // Write EEPROM, otherwise, just read.
+int eeprom_erase = 0; // Erase all EEPROM contents before writing
 int debug = 0;        // Enable/Disable debug output
 
-int addr = 0;         // Address to read/write data
+int addr = 0;         // Address to read/write EEPROM data
 int size = 0;
 
 // EEPROM structure
@@ -31,88 +32,30 @@ int size = 0;
 
 // Default parameters
 char magic[7] = "paeiot";
-char version  = 0;         // EEPROM Version
+int  version  = 0;
 
-// Device Parameters
-String devname    = "iot-workshop-1";
-byte   deveui[8]  = { 0x01, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 };
-byte   appeui[8]  = { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
-byte   appkey[16] = { 0x03, 0x7A, 0x7F, 0x9D, 0xED, 0xAA, 0x54, 0xA5, 0xBB, 0x2F, 0xB1, 0x3B, 0x2F, 0x31, 0x68, 0x33 };
+// Device parameters
+String devname = "                ";
+byte   deveui[8];
+byte   appeui[8];
+byte   appkey[16];
+ 
+// Default Device Parameters
 
-// Device structure
-typedef struct iot_otaa_dev {
-  String  devname;
-  byte    deveui[8];
-  byte    appeui[8];
-  byte    appkey[16];
-} iot_otaa_dev;
+// EUI must be in little-endian format, so least-significant-byte
+// first. When copying an EUI from ttnctl output, this means to reverse
+// the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
+// 0x70.
 
-// Devices ////////////////////////////////////////////////////////////////////////////////////////////
-iot_otaa_dev devices[] = {
-  { "iot-workshop-0",
-    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
-    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
-    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
-  },
-  { "iot-workshop-1",
-    { 0x01, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x03, 0x7A, 0x7F, 0x9D, 0xED, 0xAA, 0x54, 0xA5, 0xBB, 0x2F, 0xB1, 0x3B, 0x2F, 0x31, 0x68, 0x33 }
-  },
-  {
-    "iot-workshop-2",
-    { 0x02, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0xCF, 0x45, 0x0F, 0x3E, 0x92, 0xA6, 0x69, 0x7D, 0x44, 0x95, 0x0D, 0x0A, 0x09, 0x37, 0xDA, 0x4C }
-  },
-  {
-    "iot-workshop-3",
-    { 0x03, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0xDB, 0x76, 0xF5, 0x9A, 0xD0, 0x42, 0xF9, 0xBA, 0xB8, 0xC0, 0xD0, 0xE9, 0xB6, 0xBF, 0x01, 0xE9 }
-  },
-  {
-    "iot-workshop-4",
-    { 0x04, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x0B, 0x28, 0xA2, 0x8D, 0xA5, 0x8F, 0xCE, 0x27, 0x21, 0xA4, 0x92, 0xD1, 0x57, 0xC5, 0x39, 0xF0 }
-  },
-  {
-    "iot-workshop-5",
-    { 0x05, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x9D, 0x8E, 0xCD, 0x5A, 0x9B, 0xAA, 0xC3, 0xF7, 0x75, 0xE2, 0x19, 0xA9, 0x83, 0x62, 0xE5, 0xEE }
-  },
-  {
-    "iot-workshop-6",
-    { 0x03, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0xDB, 0x76, 0xF5, 0x9A, 0xD0, 0x42, 0xF9, 0xBA, 0xB8, 0xC0, 0xD0, 0xE9, 0xB6, 0xBF, 0x01, 0xE9 }
-  },
-  {
-    "iot-workshop-7",
-    { 0x07, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x01, 0xED, 0xD7, 0x3D, 0xEF, 0x8E, 0x2C, 0x5E, 0x9B, 0x21, 0x7A, 0x24, 0xE4, 0x45, 0xEF, 0x00 }
-  },
-  {
-    "iot-workshop-8",
-    { 0x08, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x95, 0xE8, 0x0C, 0xE1, 0xB3, 0x0B, 0x35, 0x92, 0x2E, 0x55, 0x23, 0xC1, 0xF4, 0xF2, 0x60, 0x89 }
-  },
-  {
-    "iot-workshop-9",
-    { 0x09, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0xE4, 0xAE, 0xDC, 0x6D, 0x88, 0x4B, 0xC3, 0x4D, 0xC6, 0x55, 0x98, 0xBD, 0x4F, 0xCC, 0x00, 0x3A }
-  },
-  {
-    "iot-workshop-10",
-    { 0x0a, 0x00, 0x71, 0x6F, 0x69, 0x65, 0x61, 0x70 },
-    { 0xED, 0xC2, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
-    { 0x91, 0x49, 0xD6, 0x8F, 0xB5, 0xDC, 0xBF, 0xB1, 0xEC, 0xD2, 0x37, 0x8A, 0xC6, 0xCE, 0x8A, 0xD0 }
-  }
+
+
+iot_otaa_dev device = {
+  "paeiot",
+  0,
+  "iot-mawsonlakes-1",
+  { 0x0E, 0xE9, 0x2E, 0x60, 0x21, 0x1A, 0x66, 0x00 },
+  { 0x12, 0xA0, 0x02, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 },
+  { 0x3F, 0xE1, 0xCD, 0x5C, 0xDF, 0x39, 0xE7, 0x6B, 0xBF, 0xF1, 0xF4, 0x01, 0x70, 0xF7, 0x11, 0x30 }
 };
 
 void display_device_configuration ( iot_otaa_dev* dev) {
@@ -150,149 +93,190 @@ void display_device_configuration ( iot_otaa_dev* dev) {
   Serial.println();
 };
 
+// Read EEPROM ///////////////////////////////////////////
+void read_eeprom (){
+  unsigned int tmp[16];
+  char tmp_str[40];
+
+  Serial.println(F("Reading EEPROM"));
+
+  // magic
+  Serial.print("  magic:      ");
+  addr = 0; size = 7;
+  for (int i = 0; i < size; i++) {
+    tmp_str[i] = EEPROM.read(addr + i);
+  }
+  Serial.print(tmp_str);
+  Serial.println();
+  
+  // version
+  Serial.print("  version:    ");
+  addr = 7;
+  tmp[0] = EEPROM.read(addr);
+  Serial.print(tmp[0], DEC);
+  Serial.println();
+
+  // devname
+  Serial.print("  devname:    ");
+  addr = 8; size = 24;
+  for (int i = 0; i < size ; i++) {
+    tmp_str[i] = EEPROM.read(addr + i);
+  }
+  tmp_str[size-1] = 0; // Force string termination
+  Serial.print(tmp_str);
+  Serial.println();
+  
+  // deveui
+  Serial.print("  deveui:     ");
+  addr = 32; size = 8;
+  for ( int i = 0; i < size; i++) {
+    tmp[i] = EEPROM.read(addr + i);
+    sprintf(tmp_str, "0x%.2X", tmp[i]);
+    Serial.print(tmp_str);
+    Serial.print(" ");
+  }
+  Serial.println();
+ 
+  // appeui
+  Serial.print("  appeui:     ");
+  addr = 40; size = 8;
+  for ( int i = 0; i < size; i++) {
+    tmp[i] = EEPROM.read(addr + i);
+    sprintf(tmp_str, "0x%.2X", tmp[i]);
+    Serial.print(tmp_str);
+    Serial.print(" ");
+  }
+  Serial.println();
+
+  // appkey
+  Serial.print("  appkey:     ");
+  addr = 48; size = 16;
+  for ( int i = 0; i < size; i++) {
+    tmp[i] = EEPROM.read(addr + i);
+    sprintf(tmp_str, "0x%.2X", tmp[i]);
+    Serial.print(tmp_str);
+    Serial.print(" ");
+  }
+  Serial.println();
+
+  Serial.println();
+  
+};
+
+// Write EEPROM ///////////////////////////////////////////
+int write_eeprom (iot_otaa_dev device, int eeprom_erase){
+  String devname = "                ";
+  byte   deveui[8];
+  byte   appeui[8];
+  byte   appkey[16];
+   
+  devname = device.devname;
+  memcpy(deveui,  device.deveui,  8);
+  memcpy(appeui,  device.appeui,  8);
+  memcpy(appkey,  device.appkey,  16);
+  
+  if (eeprom_erase) {
+    Serial.println("  *** Erasing EEPROM");
+    for (int i = 0 ; i < EEPROM.length() ; i++) {
+      EEPROM.write(i, 0);
+    };
+  };
+
+  // Write magic
+  addr = 0 ; size = 7;
+  for (int i = 0 ; i < size ; i ++) {
+    EEPROM.write(addr + i, magic[i]);
+  };
+
+  // Write version
+  addr = 7;
+  EEPROM.write(addr, version);
+
+  // Write devname
+  addr = 8; size = 24;
+  for (int i = 0 ; i < size ; i ++) {
+    EEPROM.write(addr + i, devname[i]);
+  };
+  
+  // Write deveui
+  addr = 32; size = 8;
+  for (int i = 0 ; i < size ; i ++) {
+    EEPROM.write(addr + i, deveui[i]);
+  };
+
+  // Write appeui
+  addr = 40; size = 8;
+  for (int i = 0 ; i < size ; i ++) {
+    EEPROM.write(addr + i, appeui[i]);
+  };
+
+  // Write appkey
+  addr = 48; size = 16;
+  for (int i = 0 ; i < size ; i ++) {
+    EEPROM.write(addr + i, appkey[i]);
+  };
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 void setup() {
-  char tmp[16];
   Serial.begin(115200);
   Serial.println(F("Starting"));
 
   // initialize the LED pin as an output.
   pinMode(13, OUTPUT);
 
+  Serial.print("EEPROM Magic: ");
+  Serial.println(magic);
+
+  Serial.print("Version:      ");
+  Serial.println(version, DEC);
+  Serial.println("");
+
   // Default Application EUI
   // Devices
-  if (device == 0) {
+  if (device_number == 0) {
     Serial.println(F("No Device Specified, using default values"));
+    devname = device.devname;
+    memcpy(deveui,  device.deveui,  8);
+    memcpy(appeui,  device.appeui,  8);
+    memcpy(appkey,  device.appkey,  16);
   } else {
-    devname = devices[device].devname;
-    memcpy(deveui,  devices[device].deveui,  8);
-    memcpy(appeui,  devices[device].appeui,  8);
-    memcpy(appkey,  devices[device].appkey,  16);
+    devname = devices[device_number].devname;
+    memcpy(deveui,  devices[device_number].deveui,  8);
+    memcpy(appeui,  devices[device_number].appeui,  8);
+    memcpy(appkey,  devices[device_number].appkey,  16);
   }
 
-  // Write EEPROM //////////////////////////////////////////
-  if (erase_eeprom) {
-    // Erase existing EEPROM
-    for (int i = 0 ; i < EEPROM.length() ; i++) {
-      EEPROM.write(i, 0);
-    };
-  };
+  // Display Configuration//////////////////////////////////
+  Serial.print("Device Name:  ");
+  Serial.println(device.devname);
 
-  if (write_eeprom) {
-    // Write magic
-    addr = 0 ; size = 7;
-    for (int i = 0 ; i < size ; i ++) {
-      EEPROM.write(addr + i, magic[i]);
-    };
-    // Write version
-    addr = 7;
-    EEPROM.write(addr, version);
-    // Write devname
-    addr = 8; size = 24;
-    for (int i = 0 ; i < size ; i ++) {
-      EEPROM.write(addr + i, devname[i]);
-    };
-    // Write deveui
-    addr = 32; size = 8;
-    for (int i = 0 ; i < size ; i ++) {
-      EEPROM.write(addr + i, deveui[i]);
-    };
-    // Write appeui
-    addr = 40; size = 8;
-    for (int i = 0 ; i < size ; i ++) {
-      EEPROM.write(addr + i, appeui[i]);
-    };
-    // Write appkey
-    addr = 48; size = 16;
-    for (int i = 0 ; i < size ; i ++) {
-      EEPROM.write(addr + i, appkey[i]);
-    };
-  };
-
-  // Read EEPROM ///////////////////////////////////////////
-  Serial.println(F("Reading EEPROM"));
-
-  // magic
-  Serial.print("  magic:      ");
-  addr = 0; size = 7;
-  for (int i = 0; i < size ; i++) {
-    magic[i] = EEPROM.read(addr + i);
-  }
-  Serial.print(magic);
-  Serial.println();
-  // version
-  Serial.print("  version:    ");
-  addr = 7;
-  version = EEPROM.read(addr);
-  Serial.print(version, DEC);
-  Serial.println();
-  // devname
-  Serial.print("  devname:    ");
-  addr = 8; size = 24;
-  for (int i = 0; i < size ; i++) {
-    devname[i] = EEPROM.read(addr + i);
-  }
-  Serial.print(devname);
-  Serial.println();
-  // deveui
-  Serial.print("  deveui:     ");
-  addr = 32; size = 8;
-  for ( int i = 0; i < size; i++) {
-    deveui[i] = EEPROM.read(addr + i);
-    sprintf(tmp, "0x%.2X", deveui[i]);
-    Serial.print(tmp);
-    Serial.print(" ");
-  }
-  Serial.println();
-  // appeui
-  Serial.print("  appeui:     ");
-  addr = 40; size = 8;
-  for ( int i = 0; i < size; i++) {
-    appeui[i] = EEPROM.read(addr + i);
-    sprintf(tmp, "0x%.2X", appeui[i]);
-    Serial.print(tmp);
-    Serial.print(" ");
-  }
-  Serial.println();
-  // appkey
-  Serial.print("  appkey:     ");
-  addr = 48; size = 16;
-  for ( int i = 0; i < size; i++) {
-    appkey[i] = EEPROM.read(addr + i);
-    sprintf(tmp, "0x%.2X", appkey[i]);
-    Serial.print(tmp);
-    Serial.print(" ");
-  }
-  Serial.println();
-
-  Serial.println();
+  Serial.println("Configuration");
+  display_device_configuration(&device);
+  
+  read_eeprom();
 
   // turn the LED on when we're done
   digitalWrite(13, HIGH);
 
   // Display Program / Device Configuration
-  Serial.println("Configuration");
-  Serial.print("  Write configuration to EEPROM");
-  if (write_eeprom) {
+  Serial.println("Write");
+  Serial.print("    Write configuration to EEPROM");
+  if (eeprom_write) {
     Serial.println(" [ENABLED]");
+    write_eeprom(device,eeprom_erase);
+ 
+    Serial.println("  Read configuration from EEPROM");
+    Serial.println();
+
+    Serial.println("Configuration");
+    display_device_configuration(&device);
+  
   } else {
     Serial.println(" [DISABLED]");
   }
-  Serial.println("  Read configuration from EEPROM");
-  Serial.println();
-
-  Serial.print("Magic:        ");
-  Serial.println(magic);
-
-  Serial.print("Version:      ");
-  Serial.println(version, DEC);
-
-  Serial.print("Device Name:  ");
-  Serial.println(devname);
-
-  Serial.println("Configuration");
-  display_device_configuration(&devices[1]);
+  
 };
 
 void loop() {
